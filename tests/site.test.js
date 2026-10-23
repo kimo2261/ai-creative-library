@@ -30,7 +30,7 @@ class FakeElement {
   dispatch(type) { return this.listeners[type]?.({ target: this }); }
 }
 
-function boot({ storedFavorites = '[]', clipboard } = {}) {
+function boot({ storedFavorites = '[]', clipboard, storageWriteError = null } = {}) {
   const ids = ['count', 'favcount', 'search', 'cats', 'heading', 'cards', 'chosen',
     'brand', 'subject', 'style', 'ratio', 'platform', 'details', 'preview', 'copy', 'export'];
   const elements = Object.fromEntries(ids.map(id => [id, new FakeElement('div', id)]));
@@ -55,7 +55,10 @@ function boot({ storedFavorites = '[]', clipboard } = {}) {
   };
   const localStorage = {
     getItem: () => storedFavorites,
-    setItem: (key, value) => writes.push([key, value])
+    setItem: (key, value) => {
+      if (storageWriteError) throw storageWriteError;
+      writes.push([key, value]);
+    }
   };
   const context = vm.createContext({
     document,
@@ -93,6 +96,20 @@ test('valid non-array favorites data is reset instead of breaking startup', () =
   const { writes, elements } = boot({ storedFavorites: '{}' });
   assert.deepEqual(writes.at(-1), ['ai-library-favorites', '[]']);
   assert.equal(elements.favcount.textContent, 0);
+});
+
+test('blocked storage writes do not prevent rendering or in-session favorites', () => {
+  const quotaError = new Error('Storage quota exceeded');
+  quotaError.name = 'QuotaExceededError';
+  const { elements } = boot({ storageWriteError: quotaError });
+
+  assert.equal(elements.cards.children.length, 10);
+  assert.match(elements.preview.textContent, /HERO-PRODUCT/);
+
+  const firstFavoriteButton = elements.cards.children[0].children[2].children[1];
+  firstFavoriteButton.onclick();
+  assert.equal(elements.favcount.textContent, 1);
+  assert.equal(elements.cards.children[0].children[2].children[1].textContent, '♥ محفوظ');
 });
 
 test('copy uses a legacy browser fallback when Clipboard API is unavailable', async () => {

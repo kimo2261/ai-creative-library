@@ -16,7 +16,11 @@ try {
 }
 
 function save() {
-  localStorage.setItem('ai-library-favorites', JSON.stringify(favorites));
+  try {
+    localStorage.setItem('ai-library-favorites', JSON.stringify(favorites));
+  } catch {
+    // Keep favorites available for this page session when storage is blocked or full.
+  }
   $('favcount').textContent = favorites.length;
 }
 
